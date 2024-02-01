@@ -1,19 +1,21 @@
 import styled from "styled-components";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useQuery, useApolloClient } from "@apollo/client";
 import { ALL_NEWS, GET_NEWS_BY_ID } from "../apollo/postNews.js";
+import { Link } from "react-router-dom";
 
-const NewsDetails = ({ newsContent }) => {
+const NewsDetails = ({ newsContent, loadMore }) => {
   return (
     <div>
       {newsContent.map((news, index) => (
-        <NewsItem key={index} news={news} />
+        <NewsDetailsItem key={index} news={news} />
       ))}
+      <div ref={loadMore} />
     </div>
   );
 };
 
-const NewsItem = ({ news }) => {
+const NewsDetailsItem = ({ news }) => {
   const Wrapper = styled.section`
     margin: 0px auto;
     display: grid;
@@ -78,7 +80,10 @@ const NewsItem = ({ news }) => {
 const News = () => {
   const client = useApolloClient();
   const [newsContent, setNewsContent] = useState([]);
-  const { loading, error, data } = useQuery(ALL_NEWS);
+  const [page, setPage] = useState(1);
+  const { loading, error, data } = useQuery(ALL_NEWS, {
+    variables: { page },
+  });
 
   useEffect(() => {
     if (!loading && !error) {
@@ -94,18 +99,37 @@ const News = () => {
       Promise.all(promises)
         .then((results) => {
           const newsData = results.map((result) => result.data.content);
-          setNewsContent(newsData);
+          setNewsContent((prevNews) => [...prevNews, ...newsData]);
         })
         .catch((error) => {
           console.error("Error executing queries:", error);
         });
     }
-  }, [loading, error, data, client]);
+  }, [loading, error, data, client, page]);
+
+  const handleScroll = useCallback(() => {
+    const scrollThreshold = 200;
+    if (
+      window.innerHeight +
+        document.documentElement.scrollTop +
+        scrollThreshold >=
+      document.documentElement.offsetHeight
+    ) {
+      setPage((prevPage) => prevPage + 1);
+    }
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener("scroll", handleScroll);
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, [handleScroll]);
 
   if (loading) return <p>Loading...</p>;
   if (error) return <p>Error: {error.message}</p>;
 
-  return <NewsDetails newsContent={newsContent} />;
+  return <NewsDetails newsContent={newsContent} loadMore={handleScroll} />;
 };
 
 export default News;
